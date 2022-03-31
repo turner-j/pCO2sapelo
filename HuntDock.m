@@ -162,7 +162,7 @@ resid = infer(BestMdl,Y);
 yhat = tbl.pCO2((length(tbl.pCO2)-length(resid)+1):end) - resid(:,end);
 
 co2lampcropped = co2lamp_filtered((length(tbl.pCO2)-length(resid)+1):end);
-[R,P] = corrcoef(1000*yhat(~isnan(yhat)),(co2lampcropped(~isnan(yhat))))
+[R,P] = corrcoef(1000*yhat(~isnan(yhat)),(co2lampcropped(~isnan(yhat)))) % How well VAR fits pCO2 obs
 
 %%
 [h,Summary] = gctest(BestMdl)

@@ -43,6 +43,12 @@ T = T(ind,:);
 
 % interpolate water temperature to match timestamps of CO2LAMP
 Ttemp = interp1(T.DateTimeStamp,T.Temp,co2lamp_filteredtimes);
+Tsal = interp1(T.DateTimeStamp,T.Sal,co2lamp_filteredtimes);% repeat with salinity
+TpH = interp1(T.DateTimeStamp,T.pH,co2lamp_filteredtimes);% pH
+Tturb = interp1(T.DateTimeStamp,T.Turb,co2lamp_filteredtimes);% turbidity (NTU)
+TDO = interp1(T.DateTimeStamp,T.DO_mgl,co2lamp_filteredtimes);% DO (mg/L)
+TSpCond = interp1(T.DateTimeStamp,T.SpCond,co2lamp_filteredtimes);% SpCond (mS/cm)
+   
 [R,P] = corrcoef(Ttemp(~isnan(Ttemp)&~isnan(co2lamp_filtered)&(co2lamp_filtered>600)),co2lamp_filtered(~isnan(Ttemp)&~isnan(co2lamp_filtered)&(co2lamp_filtered>600)))
 %% Temp-normalize pCO2
 for i = 1:length(co2lamp_filtered)
@@ -81,16 +87,15 @@ stderror = std(co2lamp_filtered2)/sqrt(length(co2lamp_filtered2))
 binEdges = min(tide):.2:max(tide);
 grouptide = discretize(tide,binEdges);
 b = boxchart(grouptide,co2lamp_filtered2)
-% Calculate mean of each bin
-% meanpCO2 = groupsummary(co2lamp_filtered2,grouptide,'mean');
+
 bns = (binEdges(1:end-1) + binEdges(2:end))./2;
-y1 = -828.3.*(bns.^2)+2602.*(bns)+819.4;
+y1 = -819.7.*(bns.^2)+2573.*(bns)+838.9;
 hold on
 plot(y1,'-k')
 ylabel('{\itp}CO_2')
 xlabel('Tide Height (m)')
 formatSpec = '%.2f';
-text(0.2,5500,[{'R^2 ='} num2str(0.86,formatSpec)],'FontSize',12)
+text(0.2,5500,[{'R^2 ='} num2str(0.84,formatSpec)],'FontSize',12)
 caption = sprintf('y = %.0f*x^2 +%.0f*x + %.0f',-828.3,2602,819.4);
 text(0.2,6500, caption, 'FontSize', 12, 'Color', 'k');
 xlim([0 14])
@@ -114,8 +119,10 @@ ind = find((tide>=2.09));
 range(co2lamp_filtered2(ind))
 std(co2lamp_filtered2(ind))
 
-% figure()
-% plot(binEdges,meanpCO2,'.')
+% Quadratic Fitting
+meanpCO2 = groupsummary(co2lamp_filtered2,grouptide,'mean');% Calculate mean of each bin
+figure()
+plot(binEdges,meanpCO2,'.')
 %% Interpolate co2lamp to match interpolated tide data
 pCO2 = interp1(co2lamp_filteredtimes,co2lamp_filtered,xx);
 tide = interp1(xx,yy,co2lamp_filteredtimes);
@@ -127,8 +134,8 @@ yy(isnan(yy))=0;
 vq4 = interp1(xx,yy,co2lamp_filteredtimes); % tide height
 phase = interp1(d,mooninfo2021.Phase,co2lamp_filteredtimes); % moon phase
 % switch up the order to see if the results change
-tbl = table(phase./10,vq4,co2lamp_filtered./100); % create a table with the response as the last variable
-tbl.Properties.VariableNames = {'Moon Phase','Tide Height','pCO2'};
+tbl = table(phase./10,vq4,Tsal./10,Tturb./10,co2lamp_filtered./1000); % create a table with the response as the last variable
+tbl.Properties.VariableNames = {'Moon Phase','Tide Height','Salinity','Turbidity','pCO2'};
 %% Fit VAR models, with lags ranging from 1 to 4, to the series. Initialize each fit by specifying the first four observations. Store the Akaike information criteria (AIC) of the fits.
 T = size(tbl,1); % Total sample size
 numseries = size(tbl,2);
@@ -161,10 +168,10 @@ BestMdl = EstMdl(bestidx);
 %% Plot observations and fitted values on same graph
 resid = infer(BestMdl,Y);
 
-yhat = tbl.pCO2(10:end) - resid(:,3);
+yhat = tbl.pCO2((length(tbl.pCO2)-length(resid)+1):end) - resid(:,end);
 
-co2lampcropped = co2lamp_filtered(10:end);
-[R,P] = corrcoef(100*yhat(~isnan(yhat)),(co2lampcropped(~isnan(yhat))))
+co2lampcropped = co2lamp_filtered((length(tbl.pCO2)-length(resid)+1):end);
+[R,P] = corrcoef(1000*yhat(~isnan(yhat)),(co2lampcropped(~isnan(yhat))))
 
 %%
 [h,Summary] = gctest(BestMdl)
@@ -186,8 +193,6 @@ subplot(4,1,1)
 hold on
 plot(co2lamp_filteredtimes,co2lamp_filtered,'color',colorsnew(1,:),'LineWidth',2)
 findpeaks(co2lamp_filtered,co2lamp_filteredtimes,'MinPeakDistance',hours(9));
-% plot(co2lamp_filteredtimes(10:end),100*yhat,'r:','LineWidth',2)
-% plot(co2lampSapelo08172021.CO2ppm)
 hold off
 ylabel('{\it p}CO_2')% (ppm)
 set(gca,'FontSize',17)
